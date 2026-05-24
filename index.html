@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estrategia RCR Momentum</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --navy:#1E2A8A; --navy-dark:#151F6D; --navy-bg:#F0F2FA;
+  --orange:#E85D1A; --green:#1DB86E;
+  --white:#fff; --off:#F7F9FF; --gray:#8492B4;
+  --gray-lt:#EEF1F9; --text:#1A2240; --border:rgba(30,42,138,0.12);
+  --shadow:0 2px 16px rgba(30,42,138,0.08);
+  --cold:#2563EB; --warm:#E85D1A;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--off); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; }
+
+.top-bar { background:var(--navy); padding:12px 32px; display:flex; align-items:center; gap:14px; position:sticky; top:0; z-index:100; box-shadow:0 2px 12px rgba(0,0,0,0.2); }
+.brand { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:0.12em; color:white; }
+.brand-div { width:1px; height:20px; background:rgba(255,255,255,0.2); }
+.brand-sub { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:rgba(255,255,255,0.6); }
+.htag { margin-left:auto; font-size:9px; font-weight:700; padding:4px 12px; border-radius:20px; background:rgba(232,93,26,0.3); color:#ffb899; letter-spacing:0.08em; text-transform:uppercase; font-family:'DM Mono',monospace; }
+
+.main { max-width:960px; margin:40px auto; padding:0 24px 80px; }
+
+.title-card { background:var(--white); border:1px solid var(--border); border-radius:16px; padding:24px 28px; margin-bottom:20px; box-shadow:var(--shadow); text-align:center; }
+.title-tag { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:0.2em; text-transform:uppercase; color:var(--navy); background:var(--navy-bg); border:1px solid rgba(30,42,138,0.15); border-radius:100px; padding:4px 14px; display:inline-block; margin-bottom:12px; }
+.title-main { font-family:'Bebas Neue',sans-serif; font-size:36px; letter-spacing:0.06em; color:var(--navy-dark); }
+.title-main em { color:var(--orange); font-style:normal; }
+
+.table-card { background:var(--white); border:1px solid var(--border); border-radius:16px; overflow:hidden; box-shadow:var(--shadow); margin-bottom:16px; }
+
+/* LIST HEADER — 2 groups over 4 cols */
+.list-head { display:grid; grid-template-columns:50px 1fr 1fr 1fr 1fr; }
+.list-head-empty { background:var(--navy-dark); border-bottom:1px solid rgba(255,255,255,0.1); }
+.list-badge { padding:11px 16px; font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:0.06em; text-align:center; }
+.list-badge.cold { background:rgba(37,99,235,0.1); color:var(--cold); border-right:1px solid var(--border); grid-column: span 2; }
+.list-badge.warm { background:rgba(232,93,26,0.07); color:var(--warm); grid-column: span 2; }
+
+.col-headers { display:grid; grid-template-columns:50px 1fr 1fr 1fr 1fr; border-bottom:2px solid var(--border); background:var(--navy-bg); }
+.col-h { padding:10px 12px; font-family:'DM Mono',monospace; font-size:8px; letter-spacing:0.12em; text-transform:uppercase; color:var(--navy); font-weight:600; line-height:1.4; border-right:1px solid var(--border); }
+.col-h:last-child { border-right:none; }
+.col-h.cold { color:var(--cold); }
+.col-h.warm { color:var(--warm); }
+.col-h.center { text-align:center; }
+
+.data-row { display:grid; grid-template-columns:50px 1fr 1fr 1fr 1fr; border-bottom:1px solid var(--gray-lt); align-items:center; transition:background 0.1s; }
+.data-row:last-child { border-bottom:none; }
+.data-row:hover { background:rgba(240,242,250,0.4); }
+
+.row-num { padding:0 12px; font-family:'DM Mono',monospace; font-size:11px; color:var(--gray); text-align:center; }
+
+.cell-input { width:100%; border:none; border-right:1px solid var(--gray-lt); background:transparent; padding:10px 12px; font-family:'DM Mono',monospace; font-size:12px; color:var(--navy-dark); font-weight:600; text-transform:uppercase; letter-spacing:0.06em; outline:none; }
+.cell-input:focus { background:rgba(30,42,138,0.03); }
+.cell-input::placeholder { color:var(--gray); font-weight:300; text-transform:none; letter-spacing:0; font-size:11px; }
+
+.cell-select { width:100%; border:none; border-right:1px solid var(--gray-lt); background:transparent; padding:10px 12px; font-family:'DM Sans',sans-serif; font-size:11px; color:var(--text); outline:none; cursor:pointer; appearance:none; -webkit-appearance:none; }
+.cell-select:last-child { border-right:none; }
+.cell-select:focus { background:rgba(30,42,138,0.03); }
+.cell-select.v-yes { color:var(--green); font-weight:600; }
+.cell-select.v-no { color:#C0392B; font-weight:600; }
+.cell-select.v-partial { color:#D4890A; font-weight:600; }
+
+.add-row-btn { display:flex; align-items:center; gap:8px; padding:11px 20px; border:none; background:rgba(30,42,138,0.03); color:var(--navy); cursor:pointer; font-family:'DM Sans',sans-serif; font-size:12px; font-weight:500; width:100%; transition:background 0.15s; border-top:1px dashed var(--border); }
+.add-row-btn:hover { background:rgba(30,42,138,0.07); }
+
+.actions-bar { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap; }
+.action-btn { display:flex; align-items:center; gap:7px; padding:10px 20px; border-radius:10px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; border:1.5px solid var(--border); }
+.action-btn.primary { background:var(--green); color:white; border-color:var(--green); }
+.action-btn.primary:hover { opacity:0.85; }
+.action-btn.secondary { background:var(--white); color:var(--navy); }
+.action-btn.secondary:hover { border-color:var(--navy); background:var(--navy-bg); }
+.action-btn.danger { background:var(--white); color:#C0392B; border-color:rgba(192,57,43,0.2); }
+.action-btn.danger:hover { background:rgba(192,57,43,0.06); }
+
+.foot { text-align:center; margin-top:40px; }
+.foot-text { font-family:'DM Mono',monospace; font-size:8px; letter-spacing:0.18em; text-transform:uppercase; color:var(--gray); }
+
+@media(max-width:640px){
+  .top-bar { padding:10px 16px; }
+  .main { padding:0 10px 60px; margin-top:20px; }
+  .col-h { font-size:7px; padding:7px 5px; }
+  .cell-input,.cell-select { padding:8px 6px; font-size:10px; }
+  .row-num { padding:0 6px; }
+}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="brand">Excedente</div>
+  <div class="brand-div"></div>
+  <div class="brand-sub">@aqfinanzas</div>
+  <div class="htag">RCR Momentum</div>
+</div>
+
+<div class="main">
+
+  <div class="title-card">
+    <div class="title-tag">Lista de Acciones</div>
+    <div class="title-main">Estrategia <em>RCR Momentum</em></div>
+  </div>
+
+  <div class="table-card">
+
+    <!-- LIST HEADERS -->
+    <div class="list-head">
+      <div class="list-head-empty"></div>
+      <div class="list-badge cold">&#129398; Lista Fria</div>
+      <div class="list-badge warm">&#128293; Lista Tibia</div>
+    </div>
+
+    <!-- COL HEADERS -->
+    <div class="col-headers">
+      <div class="col-h center">#</div>
+      <div class="col-h">Nombre de la Accion</div>
+      <div class="col-h cold center">Capitalizacion<br>$2 a $10 billones</div>
+      <div class="col-h cold center">Rango de Precio<br>$1 a $40 dolares</div>
+      <div class="col-h warm center">Debajo del<br>SMA de 200</div>
+      <div class="col-h warm center">Calif. de los<br>Analistas</div>
+    </div>
+
+    <div id="rowContainer"></div>
+
+    <button class="add-row-btn" onclick="addRow()">&#43; Agregar fila</button>
+
+  </div>
+
+  <div class="actions-bar">
+    <button class="action-btn danger" onclick="clearAll()">&#128465; Limpiar todo</button>
+    <button class="action-btn secondary" onclick="addRow()">&#43; Nueva fila</button>
+    <button class="action-btn primary" onclick="exportExcel()">&#11015; Guardar en Excel</button>
+  </div>
+
+</div>
+
+<div class="foot">
+  <div class="foot-text">@aqfinanzas &middot; Club Excedente &middot; Alejandro Quinones &middot; 2026</div>
+</div>
+
+<script>
+var rowCount = 0;
+
+function makeSelect(id, field) {
+  return "<select class='cell-select' id='" + id + "-" + field + "' onchange='styleSelect(this)'>" +
+    "<option value=''>-</option>" +
+    "<option value='si'>Si cumple</option>" +
+    "<option value='no'>No cumple</option>" +
+    "<option value='parcial'>Parcial</option>" +
+  "</select>";
+}
+
+function styleSelect(sel) {
+  sel.className = "cell-select";
+  if (sel.value === "si") sel.classList.add("v-yes");
+  else if (sel.value === "no") sel.classList.add("v-no");
+  else if (sel.value === "parcial") sel.classList.add("v-partial");
+}
+
+function addRow() {
+  rowCount++;
+  var n = rowCount;
+  var div = document.createElement("div");
+  div.className = "data-row";
+  div.id = "row-" + n;
+  div.innerHTML =
+    "<div class='row-num'>" + n + "</div>" +
+    "<input class='cell-input' id='r" + n + "-sym' type='text' placeholder='Ej: MELI' />" +
+    makeSelect("r" + n, "c1") +
+    makeSelect("r" + n, "c2") +
+    makeSelect("r" + n, "c3") +
+    makeSelect("r" + n, "c4");
+  document.getElementById("rowContainer").appendChild(div);
+}
+
+function clearAll() {
+  if (!confirm("Borrar todas las filas?")) return;
+  document.getElementById("rowContainer").innerHTML = "";
+  rowCount = 0;
+}
+
+function exportExcel() {
+  var wb = XLSX.utils.book_new();
+  var wsData = [];
+
+  wsData.push(["", "", "", "", "", ""]);
+  wsData.push(["Estrategia RCR Momentum", "", "", "", "", ""]);
+  wsData.push(["", "", "", "", "", ""]);
+  wsData.push(["", "Lista Fria", "", "Lista Tibia", "", ""]);
+  wsData.push([
+    "Nombre de la Accion",
+    "Capitalizacion $2 a $10 billones",
+    "Rango de Precio ($1 a $40 dolares)",
+    "Debajo del SMA de 200",
+    "Calificacion de los Analistas",
+    ""
+  ]);
+
+  var rows = document.getElementById("rowContainer").querySelectorAll(".data-row");
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var sym = row.querySelector("input") ? row.querySelector("input").value : "";
+    var sels = row.querySelectorAll("select");
+    var c1 = sels[0] ? sels[0].value : "";
+    var c2 = sels[1] ? sels[1].value : "";
+    var c3 = sels[2] ? sels[2].value : "";
+    var c4 = sels[3] ? sels[3].value : "";
+    wsData.push([sym, c1, c2, c3, c4, ""]);
+  }
+
+  var ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws["!cols"] = [
+    { wch: 22 }, { wch: 36 }, { wch: 36 }, { wch: 33 }, { wch: 32 }, { wch: 11 }
+  ];
+  ws["!merges"] = [
+    { s:{r:1,c:0}, e:{r:1,c:4} },
+    { s:{r:3,c:1}, e:{r:3,c:2} },
+    { s:{r:3,c:3}, e:{r:3,c:4} }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, "Lista de Acciones (RCR Momentum");
+  var today = new Date();
+  var d = today.getFullYear() + "-" + (today.getMonth()+1) + "-" + today.getDate();
+  XLSX.writeFile(wb, "Plantilla_RCR_Momentum_" + d + ".xlsx");
+}
+
+for (var i = 0; i < 15; i++) addRow();
+</script>
+</body>
+</html>
